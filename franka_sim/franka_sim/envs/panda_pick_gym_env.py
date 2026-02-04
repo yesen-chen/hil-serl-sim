@@ -237,9 +237,22 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
             dt = time.time() - start_time
             if self.intervened == True:
                 time.sleep(max(0, (1.0 / self.hz) - dt))
-            # time.sleep(max(0, (1.0 / self.hz) - dt))
-            # cv2.imshow('Concatenated Image', np.hstack((obs["images"]["wrist_1"], obs["images"]["wrist_2"])))
-            # cv2.waitKey(1)
+            # Display multi-view windows to help data collection 
+            if self.image_obs:
+                # Get images from two cameras and display them side by side
+                img_front = obs["images"]["wrist_1"]  # front camera
+                img_wrist = obs["images"]["wrist_2"]  # wrist camera
+                # BGR to RGB for cv2 display
+                img_front_bgr = cv2.cvtColor(img_front, cv2.COLOR_RGB2BGR)
+                img_wrist_bgr = cv2.cvtColor(img_wrist, cv2.COLOR_RGB2BGR)
+                # 放大图像方便观察
+                scale = 2
+                img_front_large = cv2.resize(img_front_bgr, (img_front_bgr.shape[1] * scale, img_front_bgr.shape[0] * scale))
+                img_wrist_large = cv2.resize(img_wrist_bgr, (img_wrist_bgr.shape[1] * scale, img_wrist_bgr.shape[0] * scale))
+                # 拼接显示
+                combined = np.hstack((img_front_large, img_wrist_large))
+                cv2.imshow('Camera Views (Front | Wrist)', combined)
+                cv2.waitKey(1)
 
 
         success = self._compute_success()
