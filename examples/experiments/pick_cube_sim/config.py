@@ -111,7 +111,7 @@ class TrainConfig(DefaultTrainingConfig):
         #     save_video=save_video,
         #     config=EnvConfig(),
         # )
-        env = PandaPickCubeGymEnv(render_mode=render_mode, image_obs=True, hz=8, config=EnvConfig())
+        env = PandaPickCubeGymEnv(render_mode=render_mode, image_obs=True, hz=15, config=EnvConfig())
         classifier=False
         # fake_env=True
         # env = GripperCloseEnv(env)
@@ -156,7 +156,8 @@ class KeyBoardIntervention2(gym.ActionWrapper):
 
         self.gripper_state = 'close'
         self.intervened = False
-        self.action_length = 0.3
+        self.recording = False  # Whether currently recording
+        self.action_length = 1.0
         self.current_action = np.array([0, 0, 0, 0, 0, 0])  # 分别对应 W, A, S, D 的状态
         self.flag = False
         self.key_states = {
@@ -194,6 +195,14 @@ class KeyBoardIntervention2(gym.ActionWrapper):
                 self.intervened = not self.intervened
                 self.env.intervened = self.intervened
                 print(f"Intervention toggled: {self.intervened}")
+            elif key == glfw.KEY_ENTER:
+                self.recording = not self.recording
+                status = "Start recording" if self.recording else "Stop recording"
+                print(f"Recording toggled: {self.recording} ({status})")
+                # 开始采集时重置 env_step，确保有完整的步数可用
+                if self.recording:
+                    self.env.env_step = 0
+                    print(f"env_step reset to 0")
 
         elif action == glfw.RELEASE:
             if key == glfw.KEY_W:
@@ -260,9 +269,12 @@ class KeyBoardIntervention2(gym.ActionWrapper):
             info["intervene_action"] = new_action
         info["left"] = self.left
         info["right"] = self.right
+        info["recording"] = self.recording  # Pass recording status
         return obs, rew, done, truncated, info
     
     def reset(self, **kwargs):
         obs, info = self.env.reset(**kwargs)
         self.gripper_state = 'open'
+        self.recording = False  # 重置采集状态，等待下次回车
+        print("Environment reset. Press Enter to start recording...")
         return obs, info

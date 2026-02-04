@@ -15,28 +15,45 @@ flags.DEFINE_integer("successes_needed", 200, "Number of successful transistions
 
 
 success_key = False
+recording = False  # Whether currently recording
+
 def on_press(key):
-    global success_key
+    global success_key, recording
     try:
         if str(key) == 'Key.space':
             success_key = True
+        elif str(key) == 'Key.enter':
+            recording = not recording
+            status = "Start recording" if recording else "Stop recording"
+            print(f"\nRecording toggled: {recording} ({status})")
     except AttributeError:
         pass
 
 def main(_):
-    global success_key
-    listener = keyboard.Listener(
-        on_press=on_press)
+    global success_key, recording
+    listener = keyboard.Listener(on_press=on_press)
     listener.start()
+    
     assert FLAGS.exp_name in CONFIG_MAPPING, 'Experiment folder not found.'
     config = CONFIG_MAPPING[FLAGS.exp_name]()
     env = config.get_environment(fake_env=False, save_video=False, classifier=False)
 
     obs, _ = env.reset()
+    
+    print("=" * 50)
+    print("Environment ready!")
+    print("Instructions:")
+    print("  - Use keyboard to control the robot (W/A/S/D/J/K move, L toggle gripper)")
+    print("  - Press ; key to toggle manual intervention mode")
+    print("  - Press Enter to start/stop data collection")
+    print("  - Press Space to mark current frame as SUCCESS")
+    print("=" * 50)
+    print("Waiting for Enter key to start recording...")
+    
     successes = []
     failures = []
     success_needed = FLAGS.successes_needed
-    pbar = tqdm(total=success_needed)
+    pbar = tqdm(total=success_needed, desc="Success transitions")
     
     while len(successes) < success_needed:
         actions = np.zeros(env.action_space.sample().shape) 
@@ -44,39 +61,49 @@ def main(_):
         if "intervene_action" in info:
             actions = info["intervene_action"]
 
-        transition = copy.deepcopy(
-            dict(
-                observations=obs,
-                actions=actions,
-                next_observations=next_obs,
-                rewards=rew,
-                masks=1.0 - done,
-                dones=done,
+        # Only record data when recording is enabled
+        if recording:
+            transition = copy.deepcopy(
+                dict(
+                    observations=obs,
+                    actions=actions,
+                    next_observations=next_obs,
+                    rewards=rew,
+                    masks=1.0 - done,
+                    dones=done,
+                )
             )
-        )
-        obs = next_obs
-        if success_key:
-            successes.append(transition)
-            pbar.update(1)
-            success_key = False
+            
+            if success_key:
+                successes.append(transition)
+                pbar.update(1)
+                success_key = False
+            else:
+                failures.append(transition)
+            
+            pbar.set_description(f"Recording | Success: {len(successes)} | Failure: {len(failures)}")
         else:
-            failures.append(transition)
-
+            pbar.set_description(f"Waiting | Success: {len(successes)} | Failure: {len(failures)}")
+            success_key = False  # Clear any pending success key when not recording
+        
+        obs = next_obs
         if done or truncated:
             obs, _ = env.reset()
 
+    pbar.close()
+    
     if not os.path.exists("./classifier_data"):
         os.makedirs("./classifier_data")
     uuid = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     file_name = f"./classifier_data/{FLAGS.exp_name}_{success_needed}_success_images_{uuid}.pkl"
     with open(file_name, "wb") as f:
         pkl.dump(successes, f)
-        print(f"saved {success_needed} successful transitions to {file_name}")
+        print(f"\nSaved {success_needed} successful transitions to {file_name}")
 
     file_name = f"./classifier_data/{FLAGS.exp_name}_failure_images_{uuid}.pkl"
     with open(file_name, "wb") as f:
         pkl.dump(failures, f)
-        print(f"saved {len(failures)} failure transitions to {file_name}")
+        print(f"Saved {len(failures)} failure transitions to {file_name}")
         
 if __name__ == "__main__":
     app.run(main)

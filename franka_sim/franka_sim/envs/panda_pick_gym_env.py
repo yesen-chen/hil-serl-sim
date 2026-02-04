@@ -85,66 +85,7 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
         self._pinch_site_id = self._model.site("pinch").id
         self._block_z = self._model.geom("block").size[2]
 
-        # self.observation_space = gym.spaces.Dict(
-        #     {
-        #         "state": gym.spaces.Dict(
-        #             {
-        #                 "panda/tcp_pos": spaces.Box(
-        #                     -np.inf, np.inf, shape=(3,), dtype=np.float32
-        #                 ),
-        #                 "panda/tcp_vel": spaces.Box(
-        #                     -np.inf, np.inf, shape=(3,), dtype=np.float32
-        #                 ),
-        #                 "panda/gripper_pos": spaces.Box(
-        #                     -np.inf, np.inf, shape=(1,), dtype=np.float32
-        #                 ),
-        #                 # "panda/joint_pos": spaces.Box(-np.inf, np.inf, shape=(7,), dtype=np.float32),
-        #                 # "panda/joint_vel": spaces.Box(-np.inf, np.inf, shape=(7,), dtype=np.float32),
-        #                 # "panda/joint_torque": specs.Array(shape=(21,), dtype=np.float32),
-        #                 # "panda/wrist_force": specs.Array(shape=(3,), dtype=np.float32),
-        #                 "block_pos": spaces.Box(
-        #                     -np.inf, np.inf, shape=(3,), dtype=np.float32
-        #                 ),
-        #             }
-        #         ),
-        #     }
-        # )
-
         if self.image_obs:
-            # Origin
-            # self.observation_space = gym.spaces.Dict(
-            #     {
-            #         "state": gym.spaces.Dict(
-            #             {
-            #                 "panda/tcp_pos": spaces.Box(
-            #                     -np.inf, np.inf, shape=(3,), dtype=np.float32
-            #                 ),
-            #                 "panda/tcp_vel": spaces.Box(
-            #                     -np.inf, np.inf, shape=(3,), dtype=np.float32
-            #                 ),
-            #                 "panda/gripper_pos": spaces.Box(
-            #                     -np.inf, np.inf, shape=(1,), dtype=np.float32
-            #                 ),
-            #             }
-            #         ),
-            #         "images": gym.spaces.Dict(
-            #             {
-            #                 "front": gym.spaces.Box(
-            #                     low=0,
-            #                     high=255,
-            #                     shape=(render_spec.height, render_spec.width, 3),
-            #                     dtype=np.uint8,
-            #                 ), #front
-            #                 "wrist": gym.spaces.Box(
-            #                     low=0,
-            #                     high=255,
-            #                     shape=(render_spec.height, render_spec.width, 3),
-            #                     dtype=np.uint8,
-            #                 ),  #wrist
-            #             }
-            #         ),
-            #     }
-            # )
 
             # startear
             self.observation_space = gym.spaces.Dict(
@@ -238,10 +179,11 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
         #     self._data.jnt("block").qpos[:3] = (*block_xy, self._block_z)
         #     mujoco.mj_forward(self._model, self._data)
 
-        # Set the mocap position.
-        pos = self._data.mocap_pos[0].copy()
+        # Set the mocap position based on current actual TCP position (not previous target)
+        # This ensures immediate stop when action is zero
+        tcp_pos = self._data.sensor("2f85/pinch_pos").data
         dpos = np.asarray([x, y, z]) * self._action_scale[0]
-        npos = np.clip(pos + dpos, *_CARTESIAN_BOUNDS)
+        npos = np.clip(tcp_pos + dpos, *_CARTESIAN_BOUNDS)
         self._data.mocap_pos[0] = npos
 
         # Set gripper grasp.
@@ -287,7 +229,7 @@ class PandaPickCubeGymEnv(MujocoGymEnv):
         # terminated = self.time_limit_exceeded()
         self.env_step += 1
         terminated = False
-        if self.env_step >= 500:
+        if self.env_step >= 1000:
             terminated = True
 
         if self.render_mode == "human":
