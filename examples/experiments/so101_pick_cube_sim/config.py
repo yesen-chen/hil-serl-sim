@@ -28,7 +28,7 @@ class EnvConfig:
 class TrainConfig(DefaultTrainingConfig):
     image_keys = ["wrist_1", "wrist_2"]
     classifier_keys = ["wrist_1", "wrist_2"]
-    proprio_keys = ["tcp_pose", "tcp_vel", "tcp_force", "tcp_torque", "gripper_pose"]
+    proprio_keys = ["joint_pos", "joint_delta"]
     buffer_period = 1000
     checkpoint_period = 5000
     steps_per_update = 50
@@ -66,46 +66,39 @@ class KeyBoardIntervention2(gym.ActionWrapper):
     def __init__(self, env, action_indices=None):
         super().__init__(env)
 
-        self.gripper_enabled = True
         self.left, self.right = False, False
         self.action_indices = action_indices
 
-        self.gripper_state = "close"
         self.intervened = False
         self.recording = False
         self.action_length = 1.0
-        self.current_action = np.array([0, 0, 0, 0, 0], dtype=np.float64)
-        self.flag = False
+        self.current_action = np.zeros(6, dtype=np.float64)
         self.key_states = {
-            "w": False,
-            "a": False,
-            "s": False,
-            "d": False,
-            "j": False,
-            "k": False,
-            "l": False,
-            ";": False,
+            "1": 0,
+            "2": 0,
+            "3": 0,
+            "4": 0,
+            "5": 0,
+            "6": 0,
         }
 
         glfw.set_key_callback(self.env._viewer.viewer.window, self.glfw_on_key)
 
     def glfw_on_key(self, window, key, scancode, action, mods):
         if action == glfw.PRESS:
-            if key == glfw.KEY_W:
-                self.key_states["w"] = True
-            elif key == glfw.KEY_A:
-                self.key_states["a"] = True
-            elif key == glfw.KEY_S:
-                self.key_states["s"] = True
-            elif key == glfw.KEY_D:
-                self.key_states["d"] = True
-            elif key == glfw.KEY_J:
-                self.key_states["j"] = True
-            elif key == glfw.KEY_K:
-                self.key_states["k"] = True
-            elif key == glfw.KEY_L:
-                self.key_states["l"] = True
-                self.flag = True
+            direction = -1 if (mods & glfw.MOD_CONTROL) else 1
+            if key == glfw.KEY_1:
+                self.key_states["1"] = direction
+            elif key == glfw.KEY_2:
+                self.key_states["2"] = direction
+            elif key == glfw.KEY_3:
+                self.key_states["3"] = direction
+            elif key == glfw.KEY_4:
+                self.key_states["4"] = direction
+            elif key == glfw.KEY_5:
+                self.key_states["5"] = direction
+            elif key == glfw.KEY_6:
+                self.key_states["6"] = direction
             elif key == glfw.KEY_SEMICOLON:
                 self.intervened = not self.intervened
                 self.env.intervened = self.intervened
@@ -119,49 +112,32 @@ class KeyBoardIntervention2(gym.ActionWrapper):
                     print("env_step reset to 0")
 
         elif action == glfw.RELEASE:
-            if key == glfw.KEY_W:
-                self.key_states["w"] = False
-            elif key == glfw.KEY_A:
-                self.key_states["a"] = False
-            elif key == glfw.KEY_S:
-                self.key_states["s"] = False
-            elif key == glfw.KEY_D:
-                self.key_states["d"] = False
-            elif key == glfw.KEY_J:
-                self.key_states["j"] = False
-            elif key == glfw.KEY_K:
-                self.key_states["k"] = False
-            elif key == glfw.KEY_L:
-                self.key_states["l"] = False
+            if key == glfw.KEY_1:
+                self.key_states["1"] = 0
+            elif key == glfw.KEY_2:
+                self.key_states["2"] = 0
+            elif key == glfw.KEY_3:
+                self.key_states["3"] = 0
+            elif key == glfw.KEY_4:
+                self.key_states["4"] = 0
+            elif key == glfw.KEY_5:
+                self.key_states["5"] = 0
+            elif key == glfw.KEY_6:
+                self.key_states["6"] = 0
 
         self.current_action = [
-            int(self.key_states["w"]) - int(self.key_states["s"]),
-            int(self.key_states["a"]) - int(self.key_states["d"]),
-            int(self.key_states["j"]) - int(self.key_states["k"]),
-            0,
-            0,
+            self.key_states["1"],
+            self.key_states["2"],
+            self.key_states["3"],
+            self.key_states["4"],
+            self.key_states["5"],
+            self.key_states["6"],
         ]
         self.current_action = np.array(self.current_action, dtype=np.float64)
         self.current_action *= self.action_length
 
     def action(self, action: np.ndarray) -> np.ndarray:
         expert_a = self.current_action.copy()
-
-        if self.gripper_enabled:
-            if self.flag and self.gripper_state == "open":
-                self.gripper_state = "close"
-                self.flag = False
-            elif self.flag and self.gripper_state == "close":
-                self.gripper_state = "open"
-                self.flag = False
-            else:
-                pass
-            gripper_action = (
-                np.random.uniform(0.9, 1, size=(1,))
-                if self.gripper_state == "close"
-                else np.random.uniform(-1, -0.9, size=(1,))
-            )
-            expert_a = np.concatenate((expert_a, gripper_action), axis=0)
 
         if self.action_indices is not None:
             filtered_expert_a = np.zeros_like(expert_a)
@@ -184,7 +160,6 @@ class KeyBoardIntervention2(gym.ActionWrapper):
 
     def reset(self, **kwargs):
         obs, info = self.env.reset(**kwargs)
-        self.gripper_state = "open"
         self.recording = False
         print("Environment reset. Press Enter to start recording...")
         return obs, info

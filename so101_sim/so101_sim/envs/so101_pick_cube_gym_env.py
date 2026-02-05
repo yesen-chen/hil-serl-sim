@@ -23,7 +23,7 @@ _JOINT_NAMES = ["Rotation", "Pitch", "Elbow", "Wrist_Pitch", "Wrist_Roll", "Jaw"
 _HOME_QPOS = np.asarray([0.0, -1.5708, 1.5708, 0.0, 1.5708, 0.0])
 _DEFAULT_ACTION_SCALE = np.asarray([0.05, 0.05, 0.05, 0.06, 0.06, 0.02])
 
-_SAMPLING_BOUNDS = np.asarray([[0.16, -0.12], [0.30, 0.12]])
+_SAMPLING_BOUNDS = np.asarray([[-0.08, -0.08], [0.08, 0.08]])
 
 
 class So101PickCubeGymEnv(MujocoGymEnv):
@@ -69,6 +69,7 @@ class So101PickCubeGymEnv(MujocoGymEnv):
         self.image_obs = image_obs
         self.env_step = 0
         self.intervened = False
+        self._prev_qpos = None
 
         self._joint_ids = [self._model.joint(name).id for name in _JOINT_NAMES]
         self._qpos_indices = np.asarray(
@@ -95,11 +96,8 @@ class So101PickCubeGymEnv(MujocoGymEnv):
 
         state_space = gym.spaces.Dict(
             {
-                "tcp_pose": gym.spaces.Box(-np.inf, np.inf, shape=(7,), dtype=np.float32),
-                "tcp_vel": gym.spaces.Box(-np.inf, np.inf, shape=(6,), dtype=np.float32),
-                "tcp_force": gym.spaces.Box(-np.inf, np.inf, shape=(3,), dtype=np.float32),
-                "tcp_torque": gym.spaces.Box(-np.inf, np.inf, shape=(3,), dtype=np.float32),
-                "gripper_pose": gym.spaces.Box(0.0, 1.0, shape=(1,), dtype=np.float32),
+                "joint_pos": gym.spaces.Box(-np.inf, np.inf, shape=(6,), dtype=np.float32),
+                "joint_delta": gym.spaces.Box(-np.inf, np.inf, shape=(6,), dtype=np.float32),
             }
         )
         if self.image_obs:
@@ -152,6 +150,7 @@ class So101PickCubeGymEnv(MujocoGymEnv):
         self._z_init = self._data.sensor("block_pos").data[2]
         self._z_success = self._z_init + 0.06
         self.env_step = 0
+        self._prev_qpos = None
         obs = self._compute_observation()
         return obs, {"succeed": False}
 
@@ -215,31 +214,16 @@ class So101PickCubeGymEnv(MujocoGymEnv):
     def _compute_observation(self) -> dict:
         obs: Dict[str, Any] = {"state": {}}
 
-        tcp_pos = self._data.site_xpos[self._site_id].copy()
-        tcp_mat = self._data.site_xmat[self._site_id].reshape(3, 3)
-        tcp_quat = np.zeros(4, dtype=np.float64)
-        mujoco.mju_mat2Quat(tcp_quat, tcp_mat.reshape(9))
-        tcp_pose = np.concatenate([tcp_pos, tcp_quat]).astype(np.float32)
-
-        jacp = np.zeros((3, self._model.nv), dtype=np.float64)
-        jacr = np.zeros((3, self._model.nv), dtype=np.float64)
-        mujoco.mj_jacSite(self._model, self._data, jacp, jacr, self._site_id)
-        tcp_vel_lin = jacp @ self._data.qvel
-        tcp_vel_ang = jacr @ self._data.qvel
-        tcp_vel = np.concatenate([tcp_vel_lin, tcp_vel_ang]).astype(np.float32)
-
-        jaw_idx = _JOINT_NAMES.index("Jaw")
-        jaw_qpos = float(self._data.qpos[self._qpos_indices[jaw_idx]])
-        jaw_min = float(self._qpos_min[jaw_idx])
-        jaw_max = float(self._qpos_max[jaw_idx])
-        gripper_pose = np.array([(jaw_qpos - jaw_min) / (jaw_max - jaw_min + 1e-6)], dtype=np.float32)
+        joint_pos = self._data.qpos[self._qpos_indices].copy().astype(np.float32)
+        if self._prev_qpos is None:
+            joint_delta = np.zeros_like(joint_pos)
+        else:
+            joint_delta = (joint_pos - self._prev_qpos).astype(np.float32)
+        self._prev_qpos = joint_pos.copy()
 
         obs["state"] = {
-            "tcp_pose": tcp_pose,
-            "tcp_vel": tcp_vel,
-            "tcp_force": np.zeros(3, dtype=np.float32),
-            "tcp_torque": np.zeros(3, dtype=np.float32),
-            "gripper_pose": gripper_pose,
+            "joint_pos": joint_pos,
+            "joint_delta": joint_delta,
         }
 
         if self.image_obs:
