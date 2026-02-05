@@ -20,10 +20,11 @@ _HERE = Path(__file__).parent
 _XML_PATH = _HERE / "xmls" / "so101_pick_cube.xml"
 
 _JOINT_NAMES = ["Rotation", "Pitch", "Elbow", "Wrist_Pitch", "Wrist_Roll", "Jaw"]
-_HOME_QPOS = np.asarray([0.0, -1.5708, 1.5708, 0.0, 1.5708, 0.0])
-_DEFAULT_ACTION_SCALE = np.asarray([0.05, 0.05, 0.05, 0.06, 0.06, 0.02])
+_HOME_QPOS = np.asarray([0.0, -1.5708, 1.5708, 0.0, 1.5708, 1.0])
+#_HOME_QPOS = np.asarray([0.0, -3.1416, 0.0, 0.0, 0.0, 0.0])
+_DEFAULT_ACTION_SCALE = np.asarray([0.05, 0.05, 0.05, 0.08, 0.08, 0.2])
 
-_SAMPLING_BOUNDS = np.asarray([[-0.08, -0.08], [0.08, 0.08]])
+_SAMPLING_BOUNDS = np.asarray([[-0.15, -0.4], [0.15, -0.3]])
 
 
 class So101PickCubeGymEnv(MujocoGymEnv):
@@ -94,12 +95,23 @@ class So101PickCubeGymEnv(MujocoGymEnv):
             image_keys = image_keys[:2]
         self._image_keys = image_keys
 
+        # joint_delta 的最大范围约为 action_scale（单步最大变化量）
+        max_delta = self._action_scale.astype(np.float32)
         state_space = gym.spaces.Dict(
             {
-                "joint_pos": gym.spaces.Box(-np.inf, np.inf, shape=(6,), dtype=np.float32),
-                "joint_delta": gym.spaces.Box(-np.inf, np.inf, shape=(6,), dtype=np.float32),
+                "joint_pos": gym.spaces.Box(
+                    low=self._qpos_min.astype(np.float32),
+                    high=self._qpos_max.astype(np.float32),
+                    dtype=np.float32,
+                ),
+                "joint_delta": gym.spaces.Box(
+                    low=-max_delta,
+                    high=max_delta,
+                    dtype=np.float32,
+                ),
             }
         )
+        print("state_space = ", state_space)
         if self.image_obs:
             self.observation_space = gym.spaces.Dict(
                 {

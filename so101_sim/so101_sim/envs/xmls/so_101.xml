@@ -29,7 +29,7 @@
 
   <default>
     <default class="so_arm101">
-      <joint frictionloss="0.1" armature="0.1"/>
+      <joint frictionloss="0.1" armature="0.1" damping="1"/>
       <position kp="50" forcerange="-35 35" ctrlrange="-3.14158 3.14158"/>
       <default class="Rotation">
         <joint axis="0 1 0" range="-2.2 2.2"/>
@@ -58,7 +58,7 @@
       <default class="collision">
         <geom group="3" type="mesh"/>
         <default class="finger_collision">
-          <geom type="box" solimp="2 1 0.01" solref="0.01 1" friction="1 0.005 0.0001"/>
+          <geom type="box" solimp="2 1 0.01" solref="0.01 1" friction="2 0.01 0.0001"/>
         </default>
       </default>
     </default>
@@ -110,7 +110,7 @@
                 <geom class="finger_collision" name="fixed_jaw_pad_3" size="0.001 0.01 0.007" pos="0.0126 -0.0768 0"/>
                 <geom class="finger_collision" name="fixed_jaw_pad_4" size="0.001 0.01 0.008" pos="0.0143 -0.0572 0"/>
                 <!-- TCP (Tool Center Point) site at gripper center -->
-                <site name="tcp" pos="0 -0.07 0" size="0.005" rgba="1 1 0 1" type="sphere"/>
+                <site name="tcp" pos="0 -0.07 0" size="0.00001" rgba="1 1 0 1" type="sphere"/>
                 <camera name="wrist" pos="0 -0.1 -0.1" quat="0 1 -1 0" fovy="75"/>
 <!--                <site name="wrist_cam_marker" pos="0 -0.1 -0.1" size="0.01" rgba="0 1 0 0.8" type="sphere"/>-->
 <!--                <geom name="wrist_cam_dir" type="capsule" fromto="0 0 0.2 0 -0.08 0.2" size="0.003" rgba="0 1 0 0.8" contype="0" conaffinity="0"/>-->

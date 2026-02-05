@@ -63,6 +63,17 @@ import gymnasium as gym
 
 
 class KeyBoardIntervention2(gym.ActionWrapper):
+    """
+    键盘控制 SO101 机械臂的 6 个关节:
+    - 1/Q: Joint 0 (Rotation) 正/负方向
+    - 2/W: Joint 1 (Pitch) 正/负方向
+    - 3/E: Joint 2 (Elbow) 正/负方向
+    - 4/R: Joint 3 (Wrist_Pitch) 正/负方向
+    - 5/T: Joint 4 (Wrist_Roll) 正/负方向
+    - 6/Y: Joint 5 (Jaw/Gripper) 正/负方向
+    - ;: 切换人为干预模式
+    - Enter: 切换录制状态
+    """
     def __init__(self, env, action_indices=None):
         super().__init__(env)
 
@@ -73,32 +84,47 @@ class KeyBoardIntervention2(gym.ActionWrapper):
         self.recording = False
         self.action_length = 1.0
         self.current_action = np.zeros(6, dtype=np.float64)
+        # 正方向键: 1-6, 负方向键: q, w, e, r, t, y
         self.key_states = {
-            "1": 0,
-            "2": 0,
-            "3": 0,
-            "4": 0,
-            "5": 0,
-            "6": 0,
+            "pos_0": False, "neg_0": False,  # Joint 0: 1/Q
+            "pos_1": False, "neg_1": False,  # Joint 1: 2/W
+            "pos_2": False, "neg_2": False,  # Joint 2: 3/E
+            "pos_3": False, "neg_3": False,  # Joint 3: 4/R
+            "pos_4": False, "neg_4": False,  # Joint 4: 5/T
+            "pos_5": False, "neg_5": False,  # Joint 5: 6/Y
         }
 
         glfw.set_key_callback(self.env._viewer.viewer.window, self.glfw_on_key)
 
     def glfw_on_key(self, window, key, scancode, action, mods):
         if action == glfw.PRESS:
-            direction = -1 if (mods & glfw.MOD_CONTROL) else 1
+            # 正方向: 1-6
             if key == glfw.KEY_1:
-                self.key_states["1"] = direction
+                self.key_states["pos_0"] = True
             elif key == glfw.KEY_2:
-                self.key_states["2"] = direction
+                self.key_states["pos_1"] = True
             elif key == glfw.KEY_3:
-                self.key_states["3"] = direction
+                self.key_states["pos_2"] = True
             elif key == glfw.KEY_4:
-                self.key_states["4"] = direction
+                self.key_states["pos_3"] = True
             elif key == glfw.KEY_5:
-                self.key_states["5"] = direction
+                self.key_states["pos_4"] = True
             elif key == glfw.KEY_6:
-                self.key_states["6"] = direction
+                self.key_states["pos_5"] = True
+            # 负方向: Q, W, E, R, T, Y
+            elif key == glfw.KEY_Q:
+                self.key_states["neg_0"] = True
+            elif key == glfw.KEY_W:
+                self.key_states["neg_1"] = True
+            elif key == glfw.KEY_E:
+                self.key_states["neg_2"] = True
+            elif key == glfw.KEY_R:
+                self.key_states["neg_3"] = True
+            elif key == glfw.KEY_T:
+                self.key_states["neg_4"] = True
+            elif key == glfw.KEY_Y:
+                self.key_states["neg_5"] = True
+            # 功能键
             elif key == glfw.KEY_SEMICOLON:
                 self.intervened = not self.intervened
                 self.env.intervened = self.intervened
@@ -112,28 +138,42 @@ class KeyBoardIntervention2(gym.ActionWrapper):
                     print("env_step reset to 0")
 
         elif action == glfw.RELEASE:
+            # 正方向: 1-6
             if key == glfw.KEY_1:
-                self.key_states["1"] = 0
+                self.key_states["pos_0"] = False
             elif key == glfw.KEY_2:
-                self.key_states["2"] = 0
+                self.key_states["pos_1"] = False
             elif key == glfw.KEY_3:
-                self.key_states["3"] = 0
+                self.key_states["pos_2"] = False
             elif key == glfw.KEY_4:
-                self.key_states["4"] = 0
+                self.key_states["pos_3"] = False
             elif key == glfw.KEY_5:
-                self.key_states["5"] = 0
+                self.key_states["pos_4"] = False
             elif key == glfw.KEY_6:
-                self.key_states["6"] = 0
+                self.key_states["pos_5"] = False
+            # 负方向: Q, W, E, R, T, Y
+            elif key == glfw.KEY_Q:
+                self.key_states["neg_0"] = False
+            elif key == glfw.KEY_W:
+                self.key_states["neg_1"] = False
+            elif key == glfw.KEY_E:
+                self.key_states["neg_2"] = False
+            elif key == glfw.KEY_R:
+                self.key_states["neg_3"] = False
+            elif key == glfw.KEY_T:
+                self.key_states["neg_4"] = False
+            elif key == glfw.KEY_Y:
+                self.key_states["neg_5"] = False
 
-        self.current_action = [
-            self.key_states["1"],
-            self.key_states["2"],
-            self.key_states["3"],
-            self.key_states["4"],
-            self.key_states["5"],
-            self.key_states["6"],
-        ]
-        self.current_action = np.array(self.current_action, dtype=np.float64)
+        # 计算各关节动作: 正方向 - 负方向
+        self.current_action = np.array([
+            int(self.key_states["pos_0"]) - int(self.key_states["neg_0"]),
+            int(self.key_states["pos_1"]) - int(self.key_states["neg_1"]),
+            int(self.key_states["pos_2"]) - int(self.key_states["neg_2"]),
+            int(self.key_states["pos_3"]) - int(self.key_states["neg_3"]),
+            int(self.key_states["pos_4"]) - int(self.key_states["neg_4"]),
+            int(self.key_states["pos_5"]) - int(self.key_states["neg_5"]),
+        ], dtype=np.float64)
         self.current_action *= self.action_length
 
     def action(self, action: np.ndarray) -> np.ndarray:
