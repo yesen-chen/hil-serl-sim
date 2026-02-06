@@ -396,7 +396,20 @@ def main(_):
                 fake_env=FLAGS.learner,
                 save_video=FLAGS.save_video,
                 classifier=True,
+            )
+        else:
+            env = config.get_environment(
+                fake_env=FLAGS.learner,
+                save_video=FLAGS.save_video,
+                classifier=True,
                 render_mode="rgb_array"
+            )
+    elif FLAGS.exp_name == 'so101_pick_cube_sim':
+        if FLAGS.actor:
+            env = config.get_environment(
+                fake_env=FLAGS.learner,
+                save_video=FLAGS.save_video,
+                classifier=True,
             )
         else:
             env = config.get_environment(
