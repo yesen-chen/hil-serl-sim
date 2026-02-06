@@ -20,8 +20,7 @@ from experiments.mappings import CONFIG_MAPPING
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("exp_name", "pick_cube_sim", "Name of experiment corresponding to folder.")
-flags.DEFINE_string("checkpoint_path", None, "Path to saved checkpoints and buffer data.")
-flags.DEFINE_string("buffer_file", None, "Specific buffer file to replay (optional).")
+flags.DEFINE_string("pkl_file", None, "Path to pkl file (demo or buffer data).")
 flags.DEFINE_integer("start_episode", 0, "Start episode index to replay.")
 flags.DEFINE_integer("num_episodes", 1, "Number of episodes to replay.")
 flags.DEFINE_boolean("save_video", False, "Save replay video.")
@@ -39,46 +38,21 @@ def print_yellow(x):
     return print("\033[93m {}\033[00m".format(x))
 
 
-def load_buffer_data(checkpoint_path, buffer_file=None):
-    """Load buffer data
+def load_pkl_data(pkl_file):
+    """Load transitions from a pkl file (demo or buffer data)
     
     Args:
-        checkpoint_path: Path to checkpoint directory
-        buffer_file: Specific buffer file to load, if None load all
+        pkl_file: Path to pkl file
     
     Returns:
         List of transitions
     """
-    buffer_path = os.path.join(checkpoint_path, "buffer")
+    if not os.path.exists(pkl_file):
+        raise ValueError(f"Pkl file does not exist: {pkl_file}")
     
-    if not os.path.exists(buffer_path):
-        raise ValueError(f"Buffer path does not exist: {buffer_path}")
-    
-    transitions = []
-    
-    if buffer_file is not None:
-        # Load specified buffer file
-        file_path = os.path.join(buffer_path, buffer_file)
-        if not os.path.exists(file_path):
-            raise ValueError(f"Buffer file does not exist: {file_path}")
-        
-        print_green(f"Loading buffer file: {file_path}")
-        with open(file_path, "rb") as f:
-            transitions = pkl.load(f)
-    else:
-        # Load all buffer files
-        buffer_files = natsorted(glob.glob(os.path.join(buffer_path, "*.pkl")))
-        
-        if len(buffer_files) == 0:
-            raise ValueError(f"No buffer files found in: {buffer_path}")
-        
-        print_green(f"Found {len(buffer_files)} buffer files")
-        
-        for file_path in buffer_files:
-            print(f"Loading: {os.path.basename(file_path)}")
-            with open(file_path, "rb") as f:
-                trans = pkl.load(f)
-                transitions.extend(trans)
+    print_green(f"Loading pkl file: {pkl_file}")
+    with open(pkl_file, "rb") as f:
+        transitions = pkl.load(f)
     
     print_green(f"Total transitions loaded: {len(transitions)}")
     return transitions
@@ -198,10 +172,10 @@ def replay_episode(env, episode, replay_speed=1.0, show_rewards=True, save_video
 
 def main(_):
     # Check parameters
-    if FLAGS.checkpoint_path is None:
-        raise ValueError("Please specify --checkpoint_path")
-    
-    checkpoint_path = os.path.abspath(FLAGS.checkpoint_path)
+    if FLAGS.pkl_file is None:
+        raise ValueError("Please specify --pkl_file")
+    else:
+        pkl_file = os.path.abspath(FLAGS.pkl_file)
     
     # Load configuration
     assert FLAGS.exp_name in CONFIG_MAPPING, f"Experiment {FLAGS.exp_name} not found."
@@ -228,9 +202,9 @@ def main(_):
     
     print_green("Environment initialized successfully!")
     
-    # Load buffer data
-    print_green("\nLoading buffer data...")
-    transitions = load_buffer_data(checkpoint_path, FLAGS.buffer_file)
+    # Load pkl data
+    print_green("\nLoading pkl data...")
+    transitions = load_pkl_data(pkl_file)
     
     # Split into episodes
     print_green("\nSplitting transitions into episodes...")

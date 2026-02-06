@@ -183,11 +183,17 @@ class So101PickCubeGymEnv(MujocoGymEnv):
             mujoco.mj_step(self._model, self._data)
 
         obs = self._compute_observation()
-        rew = self._compute_reward()
+        #rew = self._compute_reward()
         self.env_step += 1
 
         success = self._compute_success()
-        terminated = success or self.env_step >= 10000
+        if success:
+            print(f'success!')
+            rew = 1
+        else:
+            rew = 0
+            pass
+        terminated = success or self.env_step >= 1000
         truncated = False
 
         if self.render_mode == "human":
